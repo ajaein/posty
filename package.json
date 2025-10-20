@@ -1,0 +1,40 @@
+{
+  "name": "crypto-mining-system",
+  "version": "2.1.0",
+  "description": "암호화폐 채굴 시스템 - Express 기반 블록체인",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "start:v2": "node server-v2.js",
+    "start:v2.1": "node server-v2.1.js",
+    "dev": "nodemon server.js",
+    "dev:v2": "nodemon server-v2.js",
+    "dev:v2.1": "nodemon server-v2.1.js"
+  },
+  "keywords": [
+    "cryptocurrency",
+    "blockchain",
+    "mining",
+    "express"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "crypto-js": "^4.2.0",
+    "body-parser": "^1.20.2",
+    "cors": "^2.8.5",
+    "uuid": "^9.0.0",
+    "dotenv": "^16.3.1",
+    "helmet": "^7.1.0",
+    "express-rate-limit": "^7.1.5",
+    "validator": "^13.11.0",
+    "ws": "^8.16.0",
+    "jsonwebtoken": "^9.0.2",
+    "compression": "^1.7.4"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}
+

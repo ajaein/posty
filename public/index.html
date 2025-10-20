@@ -70,20 +70,28 @@
     </div>
 
     <div class="container">
+        <!-- 네비게이션 바 -->
+        <nav class="navbar">
+            <div class="navbar-brand">
+                <i class="fas fa-cube"></i> Posty
+            </div>
+            <div class="navbar-menu">
+                <!-- 사용자 정보 -->
+                <div class="user-info" id="userInfo" style="display: none;">
+                    <span id="username">사용자명</span>
+                    <button class="btn btn-sm" id="logoutBtn">로그아웃</button>
+                </div>
+                <div class="auth-buttons" id="authButtons">
+                    <button class="btn btn-sm" id="loginBtn">로그인</button>
+                    <button class="btn btn-success btn-sm" id="signupBtn">회원가입</button>
+                </div>
+            </div>
+        </nav>
+
         <!-- 헤더 -->
-        <header>
-            <h1><i class="fas fa-cube"></i> Posty Mining System</h1>
+        <header class="hero">
+            <h1><i class="fas fa-gem"></i> Posty Mining System</h1>
             <p class="subtitle">차세대 블록체인 플랫폼 V3.0</p>
-            
-            <!-- 사용자 정보 -->
-            <div class="user-info" id="userInfo" style="display: none;">
-                <span id="username">사용자명</span>
-                <button class="btn" id="logoutBtn" style="margin-left: 10px;">로그아웃</button>
-            </div>
-            <div class="auth-buttons" id="authButtons">
-                <button class="btn" id="loginBtn">로그인</button>
-                <button class="btn btn-success" id="signupBtn">회원가입</button>
-            </div>
             
             <div class="price-ticker">
                 <div class="price-item">
@@ -185,8 +193,9 @@
 
         <!-- 채굴 탭 -->
         <div id="mining-tab" class="tab-content active">
-            <div class="main-grid">
-                <div class="card">
+            <!-- 채굴 컨트롤 -->
+            <div class="mining-control">
+                <div class="card compact">
                     <div class="card-header">
                         <div class="card-title">
                             <div class="card-icon"><i class="fas fa-hammer"></i></div>
@@ -194,51 +203,62 @@
                         </div>
                     </div>
                     
-                    <div class="form-group">
-                        <label>채굴자 이름</label>
-                        <input type="text" id="minerName" placeholder="이름 입력">
-                    </div>
-                    <button class="btn" id="registerBtn">
-                        <i class="fas fa-rocket"></i> 등록
-                    </button>
-                    
-                    <button class="btn btn-success" id="mineBtn" style="margin-top: 15px;">
-                        <i class="fas fa-hammer"></i> 채굴 시작
-                    </button>
-                </div>
-
-                <div class="card">
-                    <div class="card-header">
-                        <div class="card-title">
-                            <div class="card-icon"><i class="fas fa-chart-line"></i></div>
-                            가격 차트
+                    <div class="mining-actions">
+                        <div class="form-group">
+                            <label>채굴자 이름 (레거시)</label>
+                            <input type="text" id="minerName" placeholder="이름 입력">
                         </div>
-                    </div>
-                    <div class="chart-container">
-                        <canvas id="priceChart"></canvas>
+                        <div class="button-group">
+                            <button class="btn" id="registerBtn">
+                                <i class="fas fa-rocket"></i> 등록
+                            </button>
+                            <button class="btn btn-success" id="mineBtn">
+                                <i class="fas fa-hammer"></i> 채굴 시작
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <div class="main-grid">
-                <div class="card">
+            <!-- 3열 그리드 -->
+            <div class="three-col-grid">
+                <!-- 가격 차트 -->
+                <div class="card feature-card">
                     <div class="card-header">
                         <div class="card-title">
-                            <div class="card-icon"><i class="fas fa-link"></i></div>
-                            블록체인
+                            <div class="card-icon primary"><i class="fas fa-chart-line"></i></div>
+                            <span>가격 차트</span>
                         </div>
                     </div>
-                    <div id="blockchainList"></div>
+                    <div class="chart-container-large">
+                        <canvas id="priceChart"></canvas>
+                    </div>
                 </div>
 
-                <div class="card">
+                <!-- 블록체인 -->
+                <div class="card feature-card">
                     <div class="card-header">
                         <div class="card-title">
-                            <div class="card-icon"><i class="fas fa-trophy"></i></div>
-                            채굴자 순위
+                            <div class="card-icon success"><i class="fas fa-link"></i></div>
+                            <span>최근 블록</span>
                         </div>
                     </div>
-                    <div id="minersList"></div>
+                    <div class="scrollable-list" id="blockchainList">
+                        <!-- 블록 리스트 -->
+                    </div>
+                </div>
+
+                <!-- 채굴자 순위 -->
+                <div class="card feature-card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <div class="card-icon warning"><i class="fas fa-trophy"></i></div>
+                            <span>채굴자 순위</span>
+                        </div>
+                    </div>
+                    <div class="scrollable-list" id="minersList">
+                        <!-- 채굴자 리스트 -->
+                    </div>
                 </div>
             </div>
         </div>
@@ -297,5 +317,29 @@
     </div>
 
     <script src="/js/app.js"></script>
+    
+    <!-- 페이지 정보 스크립트 -->
+    <script>
+        // 페이지 로드 정보
+        window.addEventListener('load', function() {
+            const loadTime = (performance.now() / 1000).toFixed(2);
+            console.log(`⚡ 페이지 로드 완료: ${loadTime}초`);
+        });
+        
+        // 온라인/오프라인 감지
+        window.addEventListener('online', function() {
+            console.log('✅ 인터넷 연결됨');
+            if (typeof showToast === 'function') {
+                showToast('인터넷에 다시 연결되었습니다', 'success');
+            }
+        });
+        
+        window.addEventListener('offline', function() {
+            console.warn('⚠️ 인터넷 연결 끊김');
+            if (typeof showToast === 'function') {
+                showToast('인터넷 연결이 끊어졌습니다', 'warning');
+            }
+        });
+    </script>
 </body>
 </html>

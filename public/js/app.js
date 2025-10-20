@@ -8,11 +8,18 @@ let currentTheme = 'light';
 let priceChart = null;
 let currentTab = 'mining';
 
+// 탭 간 동기화를 위한 BroadcastChannel
+let syncChannel = null;
+if (typeof BroadcastChannel !== 'undefined') {
+    syncChannel = new BroadcastChannel('posty_sync');
+}
+
 // 초기화
 document.addEventListener('DOMContentLoaded', async () => {
     initTheme();
     initTabs();
     initEventListeners();
+    initTabSync();
     
     // 저장된 세션 확인 및 검증
     await loadSavedSession();
@@ -29,6 +36,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 주기적 업데이트
     setInterval(loadStats, 5000);
     setInterval(loadPriceData, 10000);
+    
+    // 페이지 정보 표시
+    displayPageInfo();
 });
 
 // 이벤트 리스너 초기화
@@ -453,6 +463,9 @@ async function startMining() {
 function saveSession() {
     localStorage.setItem('authToken', authToken);
     localStorage.setItem('currentMiner', JSON.stringify(currentMiner));
+    
+    // 다른 탭에 로그인 알림
+    broadcastSync('login', { token: authToken, user: currentMiner });
 }
 
 async function loadSavedSession() {
@@ -638,6 +651,10 @@ function logout() {
     authToken = null;
     localStorage.removeItem('authToken');
     localStorage.removeItem('currentMiner');
+    
+    // 다른 탭에 로그아웃 알림
+    broadcastSync('logout', null);
+    
     updateAuthUI();
     showToast('로그아웃되었습니다', 'info');
 }
@@ -666,5 +683,102 @@ function updateAuthUI() {
     
     // 디버그 로그
     console.log('🔐 로그인 상태:', isLoggedIn ? `✅ ${currentMiner.username || currentMiner.email}` : '❌ 로그아웃');
+}
+
+// ==================== 탭 간 동기화 ====================
+
+// 탭 간 동기화 초기화
+function initTabSync() {
+    // BroadcastChannel 사용 (최신 브라우저)
+    if (syncChannel) {
+        syncChannel.onmessage = (event) => {
+            handleSyncMessage(event.data);
+        };
+    }
+    
+    // localStorage 이벤트 (폴백)
+    window.addEventListener('storage', (event) => {
+        if (event.key === 'authToken') {
+            // 다른 탭에서 로그인/로그아웃 발생
+            authToken = event.newValue;
+            if (!authToken) {
+                currentMiner = null;
+                updateAuthUI();
+                showToast('다른 탭에서 로그아웃되었습니다', 'info');
+            }
+        } else if (event.key === 'currentMiner') {
+            // 사용자 정보 업데이트
+            if (event.newValue) {
+                currentMiner = JSON.parse(event.newValue);
+                updateAuthUI();
+            }
+        }
+    });
+}
+
+// 동기화 메시지 브로드캐스트
+function broadcastSync(type, data) {
+    const message = { type, data, timestamp: Date.now() };
+    
+    // BroadcastChannel로 전송
+    if (syncChannel) {
+        try {
+            syncChannel.postMessage(message);
+        } catch (error) {
+            console.error('BroadcastChannel 오류:', error);
+        }
+    }
+    
+    // localStorage 이벤트도 트리거 (폴백)
+    localStorage.setItem('last_sync', JSON.stringify(message));
+}
+
+// 동기화 메시지 처리
+function handleSyncMessage(message) {
+    console.log('📡 탭 동기화:', message);
+    
+    switch (message.type) {
+        case 'login':
+            if (message.data) {
+                authToken = message.data.token;
+                currentMiner = message.data.user;
+                updateAuthUI();
+                showToast('다른 탭에서 로그인되었습니다', 'info');
+            }
+            break;
+            
+        case 'logout':
+            authToken = null;
+            currentMiner = null;
+            updateAuthUI();
+            showToast('다른 탭에서 로그아웃되었습니다', 'info');
+            break;
+            
+        case 'dataUpdate':
+            // 데이터 새로고침
+            loadStats();
+            loadBlockchain();
+            loadMiners();
+            loadPriceData();
+            break;
+    }
+}
+
+// ==================== 페이지 정보 표시 ====================
+
+function displayPageInfo() {
+    console.log('%c⛏️ Posty Mining System V3.0', 'font-size: 24px; font-weight: bold; color: #667eea;');
+    console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #667eea;');
+    console.log('🌐 서버:', window.location.origin);
+    console.log('📡 WebSocket:', ws ? '✅ 연결됨' : '❌ 연결 안 됨');
+    console.log('🔐 로그인:', currentMiner ? `✅ ${currentMiner.username || currentMiner.email}` : '❌ 로그아웃');
+    console.log('🎨 테마:', currentTheme === 'dark' ? '🌙 다크 모드' : '☀️ 라이트 모드');
+    console.log('📊 탭 동기화:', syncChannel ? '✅ 활성화 (BroadcastChannel)' : '⚠️ 폴백 모드 (localStorage)');
+    console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #667eea;');
+    console.log('💡 팁:');
+    console.log('  - 여러 탭을 열어도 로그인 상태가 동기화됩니다');
+    console.log('  - 콘솔에서 🔐 로그인 상태를 확인하세요');
+    console.log('  - 다크 모드를 사용해보세요! (우측 상단 버튼)');
+    console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #667eea;');
 }
 

@@ -32,12 +32,14 @@ const apiLimiter = rateLimit({
  * 채굴 Rate Limiting - 채굴 요청 제한
  */
 const miningLimiter = rateLimit({
-  windowMs: 5 * 60 * 1000, // 5분
-  max: 20, // 최대 20회 채굴
+  windowMs: 1 * 60 * 1000, // 1분
+  max: 10, // 최대 10회 채굴
   message: {
     success: false,
     message: '채굴 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.'
-  }
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 
 /**

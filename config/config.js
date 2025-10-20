@@ -7,7 +7,7 @@ module.exports = {
   },
   
   blockchain: {
-    initialDifficulty: parseInt(process.env.INITIAL_DIFFICULTY) || 4,
+    initialDifficulty: parseInt(process.env.INITIAL_DIFFICULTY) || 6,
     miningReward: parseInt(process.env.MINING_REWARD) || 50,
     maxDifficulty: parseInt(process.env.MAX_DIFFICULTY) || 10
   },

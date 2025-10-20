@@ -43,7 +43,7 @@ app.use(bodyParser.json({ limit: '10mb' }));
 app.use(bodyParser.urlencoded({ extended: true, limit: '10mb' }));
 app.use(express.static('public'));
 app.use(sanitizeOutput);
-app.use('/api/', apiLimiter);
+// apiLimiter 제거 - 채굴에만 Rate Limiting 적용
 
 // ==================== 초기화 ====================
 

@@ -25,7 +25,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 주기적 업데이트
     setInterval(loadStats, 5000);
     setInterval(loadPriceData, 10000);
-    setInterval(updatePrice, 3000);
 });
 
 // 테마 관리

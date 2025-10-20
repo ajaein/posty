@@ -12,6 +12,7 @@ let currentTab = 'mining';
 document.addEventListener('DOMContentLoaded', async () => {
     initTheme();
     initTabs();
+    initEventListeners();
     loadSavedSession();
     connectWebSocket();
     startPriceUpdates();
@@ -26,6 +27,27 @@ document.addEventListener('DOMContentLoaded', async () => {
     setInterval(loadStats, 5000);
     setInterval(loadPriceData, 10000);
 });
+
+// 이벤트 리스너 초기화
+function initEventListeners() {
+    // 테마 토글
+    const themeToggle = document.getElementById('themeToggle');
+    if (themeToggle) {
+        themeToggle.addEventListener('click', toggleTheme);
+    }
+    
+    // 등록 버튼
+    const registerBtn = document.getElementById('registerBtn');
+    if (registerBtn) {
+        registerBtn.addEventListener('click', registerMiner);
+    }
+    
+    // 채굴 버튼
+    const mineBtn = document.getElementById('mineBtn');
+    if (mineBtn) {
+        mineBtn.addEventListener('click', startMining);
+    }
+}
 
 // 테마 관리
 function initTheme() {
@@ -78,32 +100,45 @@ function switchTab(tabName) {
 
 // WebSocket
 function connectWebSocket() {
-    ws = new WebSocket(`ws://${window.location.host}`);
-    
-    ws.onopen = () => {
-        console.log('✅ WebSocket 연결');
-        showToast('실시간 업데이트 연결됨', 'success');
-    };
-    
-    ws.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        handleWebSocketMessage(data);
-    };
-    
-    ws.onclose = () => {
-        setTimeout(connectWebSocket, 3000);
-    };
+    try {
+        ws = new WebSocket(`ws://${window.location.host}`);
+        
+        ws.onopen = () => {
+            // WebSocket 연결됨 (조용히 처리)
+        };
+        
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            handleWebSocketMessage(data);
+        };
+        
+        ws.onerror = () => {
+            // WebSocket 오류 발생 (조용히 처리)
+        };
+        
+        ws.onclose = () => {
+            // 연결 종료 시 재연결 시도 (조용히 처리)
+            setTimeout(connectWebSocket, 5000);
+        };
+    } catch (error) {
+        // WebSocket 연결 실패 시 재시도
+        setTimeout(connectWebSocket, 5000);
+    }
 }
 
 function handleWebSocketMessage(data) {
     switch(data.type) {
         case 'blockMined':
-            showToast(`새 블록 채굴! #${data.data.block.index}`, 'success');
+            // 새 블록 채굴 시 데이터만 업데이트 (알림 없음)
             loadStats();
             loadBlockchain();
             break;
         case 'priceUpdate':
             updatePriceDisplay(data.data);
+            break;
+        case 'transactionAdded':
+            // 새 트랜잭션 추가 시 데이터 업데이트
+            loadStats();
             break;
     }
 }

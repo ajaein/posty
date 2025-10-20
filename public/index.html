@@ -11,7 +11,7 @@
 </head>
 <body data-theme="light">
     <!-- 테마 토글 -->
-    <button class="theme-toggle" onclick="toggleTheme()">
+    <button class="theme-toggle" id="themeToggle">
         <i class="fas fa-moon"></i>
     </button>
 
@@ -137,11 +137,11 @@
                         <label>채굴자 이름</label>
                         <input type="text" id="minerName" placeholder="이름 입력">
                     </div>
-                    <button class="btn" onclick="registerMiner()">
+                    <button class="btn" id="registerBtn">
                         <i class="fas fa-rocket"></i> 등록
                     </button>
                     
-                    <button class="btn btn-success" id="mineBtn" onclick="startMining()" style="margin-top: 15px;">
+                    <button class="btn btn-success" id="mineBtn" style="margin-top: 15px;">
                         <i class="fas fa-hammer"></i> 채굴 시작
                     </button>
                 </div>

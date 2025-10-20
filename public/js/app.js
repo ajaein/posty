@@ -13,7 +13,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     initTheme();
     initTabs();
     initEventListeners();
-    loadSavedSession();
+    
+    // 저장된 세션 확인 및 검증
+    await loadSavedSession();
+    
     connectWebSocket();
     startPriceUpdates();
     
@@ -241,30 +244,51 @@ function showToast(message, type = 'success') {
 
 // API 호출
 async function apiCall(endpoint, method = 'GET', body = null) {
-    const options = {
-        method,
-        headers: {
-            'Content-Type': 'application/json',
+    try {
+        const options = {
+            method,
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        };
+        
+        if (authToken) {
+            options.headers['Authorization'] = `Bearer ${authToken}`;
         }
-    };
-    
-    if (authToken) {
-        options.headers['Authorization'] = `Bearer ${authToken}`;
+        
+        if (body) {
+            options.body = JSON.stringify(body);
+        }
+        
+        const response = await fetch(endpoint, options);
+        
+        // 401 Unauthorized - 토큰 만료 또는 유효하지 않음
+        if (response.status === 401) {
+            // 자동 로그아웃
+            if (authToken) {
+                logout();
+                showToast('세션이 만료되었습니다. 다시 로그인하세요.', 'warning');
+            }
+            return { success: false, message: '인증이 필요합니다' };
+        }
+        
+        return await response.json();
+    } catch (error) {
+        // 네트워크 오류 등
+        console.error('API 호출 오류:', error);
+        throw error;
     }
-    
-    if (body) {
-        options.body = JSON.stringify(body);
-    }
-    
-    const response = await fetch(endpoint, options);
-    return await response.json();
 }
 
 // 통계 로드
 async function loadStats() {
-    const data = await apiCall('/api/stats');
-    if (data.success) {
-        updateStatsDisplay(data.data);
+    try {
+        const data = await apiCall('/api/stats');
+        if (data.success) {
+            updateStatsDisplay(data.data);
+        }
+    } catch (error) {
+        // 서버 연결 실패 시 조용히 처리
     }
 }
 
@@ -328,9 +352,13 @@ async function loadPriceData() {
 
 // 블록체인 로드
 async function loadBlockchain() {
-    const data = await apiCall('/api/chain?limit=20');
-    if (data.success) {
-        displayBlockchain(data.data.chain);
+    try {
+        const data = await apiCall('/api/chain?limit=20');
+        if (data.success) {
+            displayBlockchain(data.data.chain);
+        }
+    } catch (error) {
+        // 서버 연결 실패 시 조용히 처리
     }
 }
 
@@ -353,9 +381,13 @@ function displayBlockchain(blocks) {
 
 // 채굴자 목록
 async function loadMiners() {
-    const data = await apiCall('/api/miners');
-    if (data.success) {
-        displayMiners(data.data);
+    try {
+        const data = await apiCall('/api/miners');
+        if (data.success) {
+            displayMiners(data.data);
+        }
+    } catch (error) {
+        // 서버 연결 실패 시 조용히 처리
     }
 }
 
@@ -423,11 +455,33 @@ function saveSession() {
     localStorage.setItem('currentMiner', JSON.stringify(currentMiner));
 }
 
-function loadSavedSession() {
+async function loadSavedSession() {
     authToken = localStorage.getItem('authToken');
     const saved = localStorage.getItem('currentMiner');
-    if (saved) {
-        currentMiner = JSON.parse(saved);
+    
+    if (authToken && saved) {
+        try {
+            currentMiner = JSON.parse(saved);
+            
+            // 토큰 검증 - 서버에 내 정보 요청
+            const data = await apiCall('/api/user/me', 'GET');
+            
+            if (data.success) {
+                // 토큰이 유효함 - 최신 사용자 정보로 업데이트
+                currentMiner = data.data;
+                saveSession();
+                updateAuthUI();
+                console.log('✅ 자동 로그인 성공:', currentMiner.username || currentMiner.email);
+            } else {
+                // 토큰이 유효하지 않음 - 세션 초기화
+                logout();
+            }
+        } catch (error) {
+            // 서버 응답 실패 - 저장된 정보만 사용 (오프라인 모드)
+            updateAuthUI();
+            console.log('⚠️ 서버 연결 실패 - 저장된 세션 사용');
+        }
+    } else {
         updateAuthUI();
     }
 }
@@ -594,13 +648,23 @@ function updateAuthUI() {
     const authButtons = document.getElementById('authButtons');
     const username = document.getElementById('username');
     
-    if (currentMiner && authToken) {
-        if (userInfo) userInfo.style.display = 'flex';
-        if (authButtons) authButtons.style.display = 'none';
-        if (username) username.textContent = currentMiner.username || currentMiner.name || '사용자';
-    } else {
-        if (userInfo) userInfo.style.display = 'none';
-        if (authButtons) authButtons.style.display = 'flex';
+    const isLoggedIn = currentMiner && authToken;
+    
+    if (userInfo) {
+        userInfo.style.display = isLoggedIn ? 'flex' : 'none';
     }
+    
+    if (authButtons) {
+        authButtons.style.display = isLoggedIn ? 'none' : 'flex';
+    }
+    
+    if (username && isLoggedIn) {
+        const displayName = currentMiner.username || currentMiner.name || currentMiner.email || '사용자';
+        username.textContent = displayName;
+        username.title = currentMiner.email || '';
+    }
+    
+    // 디버그 로그
+    console.log('🔐 로그인 상태:', isLoggedIn ? `✅ ${currentMiner.username || currentMiner.email}` : '❌ 로그아웃');
 }
 

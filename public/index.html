@@ -18,11 +18,72 @@
     <!-- 토스트 컨테이너 -->
     <div class="toast-container" id="toastContainer"></div>
 
+    <!-- 로그인/회원가입 모달 -->
+    <div class="modal" id="authModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="authModalTitle">로그인</h2>
+                <button class="modal-close" id="closeAuthModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <!-- 로그인 폼 -->
+                <form id="loginForm" style="display: block;">
+                    <div class="form-group">
+                        <label>이메일</label>
+                        <input type="email" id="loginEmail" placeholder="이메일 입력" required>
+                    </div>
+                    <div class="form-group">
+                        <label>비밀번호</label>
+                        <input type="password" id="loginPassword" placeholder="비밀번호 입력" required>
+                    </div>
+                    <button type="submit" class="btn btn-success" style="width: 100%;">
+                        <i class="fas fa-sign-in-alt"></i> 로그인
+                    </button>
+                    <p style="text-align: center; margin-top: 15px;">
+                        계정이 없으신가요? <a href="#" id="showRegister" style="color: #667eea;">회원가입</a>
+                    </p>
+                </form>
+
+                <!-- 회원가입 폼 -->
+                <form id="registerForm" style="display: none;">
+                    <div class="form-group">
+                        <label>사용자명</label>
+                        <input type="text" id="registerUsername" placeholder="사용자명 입력" required>
+                    </div>
+                    <div class="form-group">
+                        <label>이메일</label>
+                        <input type="email" id="registerEmail" placeholder="이메일 입력" required>
+                    </div>
+                    <div class="form-group">
+                        <label>비밀번호</label>
+                        <input type="password" id="registerPassword" placeholder="비밀번호 입력 (최소 6자)" required>
+                    </div>
+                    <button type="submit" class="btn btn-success" style="width: 100%;">
+                        <i class="fas fa-user-plus"></i> 회원가입
+                    </button>
+                    <p style="text-align: center; margin-top: 15px;">
+                        이미 계정이 있으신가요? <a href="#" id="showLogin" style="color: #667eea;">로그인</a>
+                    </p>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <div class="container">
         <!-- 헤더 -->
         <header>
             <h1><i class="fas fa-cube"></i> Posty Mining System</h1>
-            <p class="subtitle">차세대 블록체인 플랫폼 V2.2</p>
+            <p class="subtitle">차세대 블록체인 플랫폼 V3.0</p>
+            
+            <!-- 사용자 정보 -->
+            <div class="user-info" id="userInfo" style="display: none;">
+                <span id="username">사용자명</span>
+                <button class="btn" id="logoutBtn" style="margin-left: 10px;">로그아웃</button>
+            </div>
+            <div class="auth-buttons" id="authButtons">
+                <button class="btn" id="loginBtn">로그인</button>
+                <button class="btn btn-success" id="signupBtn">회원가입</button>
+            </div>
             
             <div class="price-ticker">
                 <div class="price-item">

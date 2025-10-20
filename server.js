@@ -10,6 +10,8 @@ const { v4: uuidv4 } = require('uuid');
 const Blockchain = require('./blockchain/Blockchain');
 const TransactionPool = require('./models/TransactionPool');
 const { Wallet, WalletManager } = require('./models/Wallet');
+const UserDatabase = require('./models/UserDatabase');
+const PriceTracker = require('./models/PriceTracker');
 const config = require('./config/config');
 const logger = require('./utils/logger');
 const CryptoUtils = require('./utils/crypto');
@@ -51,6 +53,8 @@ blockchain.miningReward = config.blockchain.miningReward;
 
 const transactionPool = new TransactionPool();
 const walletManager = new WalletManager();
+const userDB = new UserDatabase();
+const priceTracker = new PriceTracker();
 const miners = new Map();
 const miningStats = {
   totalBlocksMined: 0,
@@ -59,28 +63,40 @@ const miningStats = {
   totalHashPower: 0
 };
 
+// 가격 추적기에 총 공급량 주기적으로 업데이트
+setInterval(() => {
+  const chainInfo = blockchain.getChainInfo();
+  priceTracker.updateTotalSupply(chainInfo.totalSupply);
+}, 5000);
+
 // ==================== WebSocket ====================
 
 const connectedClients = new Set();
 
 wss.on('connection', (ws) => {
   connectedClients.add(ws);
-  logger.info('새로운 WebSocket 클라이언트 연결');
+  // WebSocket 연결 로그 제거 (조용히 처리)
   
   ws.send(JSON.stringify({
     type: 'init',
     data: {
       blockchain: blockchain.getChainInfo(),
       miners: Array.from(miners.values()),
-      transactionPool: transactionPool.getStats()
+      transactionPool: transactionPool.getStats(),
+      priceData: priceTracker.getPriceData()
     }
   }));
   
   ws.on('close', () => {
     connectedClients.delete(ws);
-    logger.info('WebSocket 클라이언트 연결 해제');
+    // WebSocket 연결 해제 로그 제거 (조용히 처리)
   });
 });
+
+// 주기적으로 가격 데이터 브로드캐스트
+setInterval(() => {
+  broadcast('priceUpdate', priceTracker.getPriceData());
+}, 5000);
 
 function broadcast(type, data) {
   const message = JSON.stringify({ type, data });
@@ -110,10 +126,124 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// ==================== 인증 API ====================
+// ==================== 회원 인증 API ====================
 
 /**
- * 사용자 로그인 (채굴자 등록 시 토큰 발급)
+ * 회원가입
+ */
+app.post('/api/user/register', async (req, res) => {
+  const { email, password, username } = req.body;
+
+  if (!email || !password || !username) {
+    return res.status(400).json({
+      success: false,
+      message: '이메일, 비밀번호, 사용자명이 모두 필요합니다'
+    });
+  }
+
+  if (password.length < 6) {
+    return res.status(400).json({
+      success: false,
+      message: '비밀번호는 최소 6자 이상이어야 합니다'
+    });
+  }
+
+  try {
+    const user = await userDB.register(email, password, username);
+    
+    // 자동으로 지갑 생성
+    const wallet = walletManager.createWallet(`${username}'s Wallet`);
+    userDB.updateUser(user.id, { walletAddress: wallet.address });
+
+    // JWT 토큰 생성
+    const token = AuthMiddleware.generateToken({
+      userId: user.id,
+      email: user.email,
+      username: user.username,
+      role: 'user'
+    });
+
+    logger.success(`✅ 새 사용자 등록: ${username} (${email})`);
+
+    res.json({
+      success: true,
+      data: {
+        user: { ...user, walletAddress: wallet.address },
+        token: token,
+        message: '회원가입 성공!'
+      }
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+/**
+ * 로그인
+ */
+app.post('/api/user/login', async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({
+      success: false,
+      message: '이메일과 비밀번호가 필요합니다'
+    });
+  }
+
+  try {
+    const user = await userDB.login(email, password);
+
+    // JWT 토큰 생성
+    const token = AuthMiddleware.generateToken({
+      userId: user.id,
+      email: user.email,
+      username: user.username,
+      role: 'user'
+    });
+
+    res.json({
+      success: true,
+      data: {
+        user: user,
+        token: token,
+        message: '로그인 성공!'
+      }
+    });
+  } catch (error) {
+    res.status(401).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+/**
+ * 내 정보 조회
+ */
+app.get('/api/user/me', AuthMiddleware.authenticate, (req, res) => {
+  const user = userDB.findById(req.user.userId);
+  
+  if (!user) {
+    return res.status(404).json({
+      success: false,
+      message: '사용자를 찾을 수 없습니다'
+    });
+  }
+
+  res.json({
+    success: true,
+    data: userDB.sanitizeUser(user)
+  });
+});
+
+// ==================== 인증 API (채굴자 등록 - 레거시) ====================
+
+/**
+ * 채굴자 등록 (기존 호환성 유지)
  */
 app.post('/api/auth/login', validateInput.minerRegister, (req, res) => {
   const { name } = req.body;
@@ -573,6 +703,8 @@ app.post('/api/difficulty', validateInput.difficulty, (req, res) => {
 app.get('/api/validate', (req, res) => {
   const isValid = blockchain.isChainValid();
   
+  // 블록체인 검증 로그 제거
+  
   res.json({
     success: true,
     data: {
@@ -582,10 +714,21 @@ app.get('/api/validate', (req, res) => {
   });
 });
 
+/**
+ * 가격 데이터 조회
+ */
+app.get('/api/price', (req, res) => {
+  res.json({
+    success: true,
+    data: priceTracker.getPriceData()
+  });
+});
+
 app.get('/api/stats', (req, res) => {
   const chainInfo = blockchain.getChainInfo();
   const totalMiners = miners.size;
   const activeMiners = Array.from(miners.values()).filter(m => m.blocksMineds > 0).length;
+  const priceData = priceTracker.getPriceData();
   
   res.json({
     success: true,
@@ -596,6 +739,7 @@ app.get('/api/stats', (req, res) => {
         nextHalving: blockchain.halvingInterval - (blockchain.chain.length % blockchain.halvingInterval),
         coin: 'POSTY'
       },
+      price: priceData,
       miners: {
         total: totalMiners,
         active: activeMiners
@@ -615,7 +759,8 @@ app.get('/api/stats', (req, res) => {
       system: {
         uptime: process.uptime(),
         memory: process.memoryUsage(),
-        version: '2.1.0'
+        version: '3.0.2',
+        users: userDB.getUserCount()
       }
     }
   });

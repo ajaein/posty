@@ -36,7 +36,7 @@ function initEventListeners() {
         themeToggle.addEventListener('click', toggleTheme);
     }
     
-    // 등록 버튼
+    // 등록 버튼 (레거시)
     const registerBtn = document.getElementById('registerBtn');
     if (registerBtn) {
         registerBtn.addEventListener('click', registerMiner);
@@ -46,6 +46,69 @@ function initEventListeners() {
     const mineBtn = document.getElementById('mineBtn');
     if (mineBtn) {
         mineBtn.addEventListener('click', startMining);
+    }
+    
+    // 로그인 버튼
+    const loginBtn = document.getElementById('loginBtn');
+    if (loginBtn) {
+        loginBtn.addEventListener('click', () => showAuthModal('login'));
+    }
+    
+    // 회원가입 버튼
+    const signupBtn = document.getElementById('signupBtn');
+    if (signupBtn) {
+        signupBtn.addEventListener('click', () => showAuthModal('register'));
+    }
+    
+    // 로그아웃 버튼
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', logout);
+    }
+    
+    // 모달 닫기
+    const closeAuthModal = document.getElementById('closeAuthModal');
+    if (closeAuthModal) {
+        closeAuthModal.addEventListener('click', hideAuthModal);
+    }
+    
+    // 폼 전환
+    const showRegister = document.getElementById('showRegister');
+    if (showRegister) {
+        showRegister.addEventListener('click', (e) => {
+            e.preventDefault();
+            switchAuthForm('register');
+        });
+    }
+    
+    const showLogin = document.getElementById('showLogin');
+    if (showLogin) {
+        showLogin.addEventListener('click', (e) => {
+            e.preventDefault();
+            switchAuthForm('login');
+        });
+    }
+    
+    // 로그인 폼 제출
+    const loginForm = document.getElementById('loginForm');
+    if (loginForm) {
+        loginForm.addEventListener('submit', handleLogin);
+    }
+    
+    // 회원가입 폼 제출
+    const registerForm = document.getElementById('registerForm');
+    if (registerForm) {
+        registerForm.addEventListener('submit', handleRegister);
+    }
+    
+    // 모달 외부 클릭 시 닫기
+    const authModal = document.getElementById('authModal');
+    if (authModal) {
+        authModal.addEventListener('click', (e) => {
+            if (e.target === authModal) {
+                hideAuthModal();
+            }
+        });
     }
 }
 
@@ -128,6 +191,12 @@ function connectWebSocket() {
 
 function handleWebSocketMessage(data) {
     switch(data.type) {
+        case 'init':
+            // 초기 데이터 수신
+            if (data.data.priceData) {
+                updatePriceDisplay(data.data.priceData);
+            }
+            break;
         case 'blockMined':
             // 새 블록 채굴 시 데이터만 업데이트 (알림 없음)
             loadStats();
@@ -206,29 +275,55 @@ function updateStatsDisplay(stats) {
     document.getElementById('pendingTx').textContent = stats.blockchain.pendingTransactions;
     document.getElementById('totalMiners').textContent = stats.miners.total;
     document.getElementById('totalSupply').textContent = stats.blockchain.totalSupply.toFixed(2);
+    
+    // 가격 정보 업데이트
+    if (stats.price) {
+        updatePriceDisplay(stats.price);
+    }
 }
 
 // 가격 업데이트
-let currentPrice = 1.0;
 function startPriceUpdates() {
-    setInterval(() => {
-        // 간단한 가격 시뮬레이션
-        const change = (Math.random() - 0.5) * 0.02;
-        currentPrice = Math.max(0.01, currentPrice * (1 + change));
-        updatePriceDisplay();
-    }, 3000);
+    // WebSocket으로 실시간 가격 업데이트 받음
+    setInterval(loadPriceData, 10000);
 }
 
-function updatePriceDisplay() {
+function updatePriceDisplay(priceData) {
     const priceEl = document.getElementById('currentPrice');
-    if (priceEl) {
-        priceEl.textContent = `$${currentPrice.toFixed(4)}`;
+    const changeEl = document.getElementById('priceChange');
+    const capEl = document.getElementById('marketCap');
+    
+    if (priceEl && priceData) {
+        priceEl.textContent = `$${priceData.currentPrice.toFixed(4)}`;
+    }
+    
+    if (changeEl && priceData) {
+        const change = priceData.change24h || 0;
+        changeEl.textContent = `${change >= 0 ? '+' : ''}${change.toFixed(2)}%`;
+        changeEl.className = `price-value price-change ${change >= 0 ? 'up' : 'down'}`;
+    }
+    
+    if (capEl && priceData) {
+        const cap = priceData.marketCap || 0;
+        if (cap >= 1000000) {
+            capEl.textContent = `$${(cap / 1000000).toFixed(2)}M`;
+        } else if (cap >= 1000) {
+            capEl.textContent = `$${(cap / 1000).toFixed(2)}K`;
+        } else {
+            capEl.textContent = `$${cap.toFixed(2)}`;
+        }
     }
 }
 
 async function loadPriceData() {
-    // 가격 데이터 로드 및 차트 업데이트
-    updatePriceDisplay();
+    try {
+        const data = await apiCall('/api/price');
+        if (data.success) {
+            updatePriceDisplay(data.data);
+        }
+    } catch (error) {
+        // 가격 로드 실패 시 조용히 처리
+    }
 }
 
 // 블록체인 로드
@@ -333,12 +428,13 @@ function loadSavedSession() {
     const saved = localStorage.getItem('currentMiner');
     if (saved) {
         currentMiner = JSON.parse(saved);
-        updateMinerUI();
+        updateAuthUI();
     }
 }
 
 function updateMinerUI() {
-    // UI 업데이트 로직
+    // 레거시 함수 - updateAuthUI 호출
+    updateAuthUI();
 }
 
 // 거래소
@@ -378,5 +474,133 @@ function initPriceChart() {
             maintainAspectRatio: false
         }
     });
+}
+
+// ==================== 회원 인증 기능 ====================
+
+// 모달 표시
+function showAuthModal(type) {
+    const modal = document.getElementById('authModal');
+    if (!modal) return;
+    
+    modal.classList.add('show');
+    switchAuthForm(type);
+}
+
+// 모달 숨기기
+function hideAuthModal() {
+    const modal = document.getElementById('authModal');
+    if (!modal) return;
+    
+    modal.classList.remove('show');
+}
+
+// 폼 전환
+function switchAuthForm(type) {
+    const loginForm = document.getElementById('loginForm');
+    const registerForm = document.getElementById('registerForm');
+    const title = document.getElementById('authModalTitle');
+    
+    if (type === 'login') {
+        loginForm.style.display = 'block';
+        registerForm.style.display = 'none';
+        title.textContent = '로그인';
+    } else {
+        loginForm.style.display = 'none';
+        registerForm.style.display = 'block';
+        title.textContent = '회원가입';
+    }
+}
+
+// 로그인 처리
+async function handleLogin(e) {
+    e.preventDefault();
+    
+    const email = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    
+    if (!email || !password) {
+        showToast('이메일과 비밀번호를 입력하세요', 'warning');
+        return;
+    }
+    
+    try {
+        const data = await apiCall('/api/user/login', 'POST', { email, password });
+        
+        if (data.success) {
+            currentMiner = data.data.user;
+            authToken = data.data.token;
+            saveSession();
+            hideAuthModal();
+            updateAuthUI();
+            showToast(data.data.message, 'success');
+        } else {
+            showToast(data.message, 'error');
+        }
+    } catch (error) {
+        showToast('로그인 중 오류가 발생했습니다', 'error');
+    }
+}
+
+// 회원가입 처리
+async function handleRegister(e) {
+    e.preventDefault();
+    
+    const username = document.getElementById('registerUsername').value.trim();
+    const email = document.getElementById('registerEmail').value.trim();
+    const password = document.getElementById('registerPassword').value;
+    
+    if (!username || !email || !password) {
+        showToast('모든 필드를 입력하세요', 'warning');
+        return;
+    }
+    
+    if (password.length < 6) {
+        showToast('비밀번호는 최소 6자 이상이어야 합니다', 'warning');
+        return;
+    }
+    
+    try {
+        const data = await apiCall('/api/user/register', 'POST', { username, email, password });
+        
+        if (data.success) {
+            currentMiner = data.data.user;
+            authToken = data.data.token;
+            saveSession();
+            hideAuthModal();
+            updateAuthUI();
+            showToast(data.data.message, 'success');
+        } else {
+            showToast(data.message, 'error');
+        }
+    } catch (error) {
+        showToast('회원가입 중 오류가 발생했습니다', 'error');
+    }
+}
+
+// 로그아웃
+function logout() {
+    currentMiner = null;
+    authToken = null;
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('currentMiner');
+    updateAuthUI();
+    showToast('로그아웃되었습니다', 'info');
+}
+
+// 인증 UI 업데이트
+function updateAuthUI() {
+    const userInfo = document.getElementById('userInfo');
+    const authButtons = document.getElementById('authButtons');
+    const username = document.getElementById('username');
+    
+    if (currentMiner && authToken) {
+        if (userInfo) userInfo.style.display = 'flex';
+        if (authButtons) authButtons.style.display = 'none';
+        if (username) username.textContent = currentMiner.username || currentMiner.name || '사용자';
+    } else {
+        if (userInfo) userInfo.style.display = 'none';
+        if (authButtons) authButtons.style.display = 'flex';
+    }
 }
 

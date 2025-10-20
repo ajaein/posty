@@ -695,3 +695,126 @@ input:focus, select:focus, textarea:focus {
     }
 }
 
+/* 모달 */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(5px);
+}
+
+.modal.show {
+    display: flex;
+    align-items: center;
+    justify-center: center;
+}
+
+.modal-content {
+    background: var(--light);
+    border-radius: var(--radius);
+    max-width: 450px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: var(--shadow-lg);
+    animation: modalSlideIn 0.3s ease;
+}
+
+@keyframes modalSlideIn {
+    from {
+        transform: translateY(-50px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.modal-header {
+    padding: 25px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h2 {
+    margin: 0;
+    font-size: 1.5em;
+    background: var(--primary);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 2em;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: var(--transition);
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+}
+
+.modal-close:hover {
+    background: var(--dark-tertiary);
+    color: var(--text);
+}
+
+.modal-body {
+    padding: 25px;
+}
+
+.modal-body form {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+/* 사용자 정보 */
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.user-info span {
+    background: var(--primary);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    font-weight: 600;
+}
+
+.auth-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.auth-buttons button {
+    padding: 10px 20px;
+}
+
+/* 가격 변동 색상 */
+.price-change.up {
+    color: var(--success);
+}
+
+.price-change.down {
+    color: var(--danger);
+}
+

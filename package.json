@@ -1,6 +1,6 @@
 {
   "name": "posty-mining-system",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Posty 코인 채굴 시스템 - Express 기반 블록체인",
   "main": "server.js",
   "scripts": {
@@ -30,7 +30,8 @@
     "validator": "^13.11.0",
     "ws": "^8.16.0",
     "jsonwebtoken": "^9.0.2",
-    "compression": "^1.7.4"
+    "compression": "^1.7.4",
+    "chart.js": "^4.4.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"

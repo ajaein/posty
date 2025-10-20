@@ -2,67 +2,375 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 const path = require('path');
+const compression = require('compression');
+const WebSocket = require('ws');
+const http = require('http');
 const { v4: uuidv4 } = require('uuid');
+
 const Blockchain = require('./blockchain/Blockchain');
+const TransactionPool = require('./models/TransactionPool');
+const { Wallet, WalletManager } = require('./models/Wallet');
+const config = require('./config/config');
+const logger = require('./utils/logger');
+const CryptoUtils = require('./utils/crypto');
+const AuthMiddleware = require('./middleware/auth');
+const {
+  securityHeaders,
+  apiLimiter,
+  miningLimiter,
+  validateInput,
+  sanitizeOutput,
+  errorHandler
+} = require('./middleware/security');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const server = http.createServer(app);
+const wss = new WebSocket.Server({ server });
 
-// 미들웨어
-app.use(cors());
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+const PORT = config.server.port;
+
+// ==================== 미들웨어 ====================
+
+app.use(securityHeaders);
+app.use(compression());
+app.use(cors({
+  origin: config.cors.allowedOrigins,
+  credentials: true
+}));
+app.use(bodyParser.json({ limit: '10mb' }));
+app.use(bodyParser.urlencoded({ extended: true, limit: '10mb' }));
 app.use(express.static('public'));
+app.use(sanitizeOutput);
+app.use('/api/', apiLimiter);
 
-// 블록체인 인스턴스 생성
+// ==================== 초기화 ====================
+
 const blockchain = new Blockchain();
+blockchain.difficulty = config.blockchain.initialDifficulty;
+blockchain.miningReward = config.blockchain.miningReward;
 
-// 채굴자 관리
+const transactionPool = new TransactionPool();
+const walletManager = new WalletManager();
 const miners = new Map();
+const miningStats = {
+  totalBlocksMined: 0,
+  totalTransactions: 0,
+  averageMiningTime: 0,
+  totalHashPower: 0
+};
 
-console.log('\n' + '='.repeat(80));
-console.log('⛏️  암호화폐 채굴 시스템 시작');
-console.log('='.repeat(80));
-console.log(`🌐 서버 포트: ${PORT}`);
-console.log(`⚙️  초기 난이도: ${blockchain.difficulty}`);
-console.log(`💰 채굴 보상: ${blockchain.miningReward} 코인`);
-console.log('='.repeat(80) + '\n');
+// ==================== WebSocket ====================
+
+const connectedClients = new Set();
+
+wss.on('connection', (ws) => {
+  connectedClients.add(ws);
+  logger.info('새로운 WebSocket 클라이언트 연결');
+  
+  ws.send(JSON.stringify({
+    type: 'init',
+    data: {
+      blockchain: blockchain.getChainInfo(),
+      miners: Array.from(miners.values()),
+      transactionPool: transactionPool.getStats()
+    }
+  }));
+  
+  ws.on('close', () => {
+    connectedClients.delete(ws);
+    logger.info('WebSocket 클라이언트 연결 해제');
+  });
+});
+
+function broadcast(type, data) {
+  const message = JSON.stringify({ type, data });
+  connectedClients.forEach(client => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(message);
+    }
+  });
+}
+
+// ==================== 시스템 시작 ====================
+
+logger.success('='.repeat(80));
+logger.success('⛏️  Posty Mining System V2.1');
+logger.success('='.repeat(80));
+logger.info(`🌐 서버 포트: ${PORT}`);
+logger.info(`⚙️  초기 난이도: ${blockchain.difficulty}`);
+logger.info(`💰 채굴 보상: ${blockchain.miningReward} POSTY (반감기 적용)`);
+logger.info(`🔒 보안: Rate Limiting, Helmet, JWT 인증`);
+logger.info(`💼 지갑 시스템: 활성화`);
+logger.info(`📡 WebSocket: 실시간 업데이트`);
+logger.success('='.repeat(80));
 
 // ==================== API 엔드포인트 ====================
 
-/**
- * 홈페이지
- */
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-/**
- * 블록체인 정보 조회
- */
-app.get('/api/blockchain', (req, res) => {
-  res.json({
-    success: true,
-    data: blockchain.getChainInfo()
-  });
-});
+// ==================== 인증 API ====================
 
 /**
- * 전체 체인 조회
+ * 사용자 로그인 (채굴자 등록 시 토큰 발급)
  */
-app.get('/api/chain', (req, res) => {
+app.post('/api/auth/login', validateInput.minerRegister, (req, res) => {
+  const { name } = req.body;
+  
+  const minerId = uuidv4();
+  const minerAddress = `miner_${minerId.substring(0, 8)}`;
+  
+  // 지갑 생성
+  const wallet = walletManager.createWallet(`${name}'s Wallet`);
+  
+  miners.set(minerId, {
+    id: minerId,
+    name: name,
+    address: wallet.address,
+    walletId: wallet.id,
+    registeredAt: Date.now(),
+    blocksMineds: 0,
+    totalHashPower: 0,
+    lastMiningTime: null
+  });
+  
+  // JWT 토큰 생성
+  const token = AuthMiddleware.generateToken({
+    minerId: minerId,
+    name: name,
+    address: wallet.address,
+    role: 'miner'
+  });
+  
+  const refreshToken = AuthMiddleware.generateRefreshToken({
+    minerId: minerId
+  });
+  
+  logger.success(`👤 새로운 채굴자 등록: ${name} (${wallet.address})`);
+  
+  broadcast('minerRegistered', { name, address: wallet.address });
+  
   res.json({
     success: true,
     data: {
-      chain: blockchain.chain,
-      length: blockchain.chain.length
+      minerId: minerId,
+      address: wallet.address,
+      walletId: wallet.id,
+      name: name,
+      token: token,
+      refreshToken: refreshToken,
+      message: '로그인 성공!'
     }
   });
 });
 
 /**
- * 특정 블록 조회
+ * 토큰 갱신
  */
+app.post('/api/auth/refresh', (req, res) => {
+  const { refreshToken } = req.body;
+  
+  if (!refreshToken) {
+    return res.status(400).json({
+      success: false,
+      message: '리프레시 토큰이 필요합니다'
+    });
+  }
+  
+  const decoded = AuthMiddleware.verifyToken(refreshToken);
+  
+  if (!decoded) {
+    return res.status(401).json({
+      success: false,
+      message: '유효하지 않은 리프레시 토큰입니다'
+    });
+  }
+  
+  const miner = miners.get(decoded.minerId);
+  
+  if (!miner) {
+    return res.status(404).json({
+      success: false,
+      message: '채굴자를 찾을 수 없습니다'
+    });
+  }
+  
+  const newToken = AuthMiddleware.generateToken({
+    minerId: miner.id,
+    name: miner.name,
+    address: miner.address,
+    role: 'miner'
+  });
+  
+  res.json({
+    success: true,
+    data: { token: newToken }
+  });
+});
+
+// ==================== 지갑 API ====================
+
+/**
+ * 내 지갑 조회
+ */
+app.get('/api/wallet/me', AuthMiddleware.authenticate, (req, res) => {
+  const miner = miners.get(req.user.minerId);
+  
+  if (!miner) {
+    return res.status(404).json({
+      success: false,
+      message: '채굴자를 찾을 수 없습니다'
+    });
+  }
+  
+  const wallet = walletManager.getWallet(miner.walletId);
+  
+  if (!wallet) {
+    return res.status(404).json({
+      success: false,
+      message: '지갑을 찾을 수 없습니다'
+    });
+  }
+  
+  const balance = blockchain.getBalance(wallet.address);
+  
+  res.json({
+    success: true,
+    data: {
+      ...wallet.getPublicInfo(),
+      balance: balance,
+      miner: {
+        name: miner.name,
+        blocksMineds: miner.blocksMineds
+      }
+    }
+  });
+});
+
+/**
+ * 지갑으로 트랜잭션 서명 및 전송
+ */
+app.post('/api/wallet/send', AuthMiddleware.authenticate, validateInput.transaction, (req, res) => {
+  const { to, amount } = req.body;
+  
+  const miner = miners.get(req.user.minerId);
+  if (!miner) {
+    return res.status(404).json({ success: false, message: '채굴자를 찾을 수 없습니다' });
+  }
+  
+  const wallet = walletManager.getWallet(miner.walletId);
+  if (!wallet) {
+    return res.status(404).json({ success: false, message: '지갑을 찾을 수 없습니다' });
+  }
+  
+  try {
+    const transaction = {
+      from: wallet.address,
+      to: to,
+      amount: parseFloat(amount),
+      timestamp: Date.now(),
+      type: 'transfer'
+    };
+    
+    // 지갑으로 서명
+    const signedTransaction = wallet.signTransaction(transaction);
+    
+    // 트랜잭션 풀에 추가
+    transactionPool.addTransaction(signedTransaction);
+    blockchain.addTransaction(signedTransaction);
+    
+    wallet.addTransaction(signedTransaction);
+    
+    logger.info(`트랜잭션 추가: ${wallet.address} -> ${to} (${amount} POSTY)`);
+    broadcast('transactionAdded', signedTransaction);
+    
+    res.json({
+      success: true,
+      data: {
+        message: '트랜잭션이 추가되었습니다',
+        transaction: signedTransaction,
+        poolSize: transactionPool.getSize()
+      }
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+/**
+ * 지갑 내보내기
+ */
+app.get('/api/wallet/export', AuthMiddleware.authenticate, (req, res) => {
+  const miner = miners.get(req.user.minerId);
+  if (!miner) {
+    return res.status(404).json({ success: false, message: '채굴자를 찾을 수 없습니다' });
+  }
+  
+  const wallet = walletManager.getWallet(miner.walletId);
+  if (!wallet) {
+    return res.status(404).json({ success: false, message: '지갑을 찾을 수 없습니다' });
+  }
+  
+  res.json({
+    success: true,
+    data: wallet.exportToJSON(),
+    warning: '⚠️ 개인키를 안전하게 보관하세요!'
+  });
+});
+
+// ==================== 블록체인 API ====================
+
+app.get('/api/health', (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      status: 'healthy',
+      uptime: process.uptime(),
+      timestamp: Date.now(),
+      version: '2.1.0',
+      coin: 'POSTY'
+    }
+  });
+});
+
+app.get('/api/blockchain', (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      ...blockchain.getChainInfo(),
+      currentReward: blockchain.getCurrentReward(),
+      nextHalving: blockchain.halvingInterval - (blockchain.chain.length % blockchain.halvingInterval),
+      coin: 'POSTY'
+    }
+  });
+});
+
+app.get('/api/chain', (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+  const startIndex = (page - 1) * limit;
+  const endIndex = page * limit;
+  
+  const paginatedChain = blockchain.chain.slice().reverse().slice(startIndex, endIndex);
+  
+  res.json({
+    success: true,
+    data: {
+      chain: paginatedChain,
+      pagination: {
+        currentPage: page,
+        totalPages: Math.ceil(blockchain.chain.length / limit),
+        totalBlocks: blockchain.chain.length,
+        limit
+      }
+    }
+  });
+});
+
 app.get('/api/block/:index', (req, res) => {
   const index = parseInt(req.params.index);
   const block = blockchain.getBlock(index);
@@ -81,96 +389,10 @@ app.get('/api/block/:index', (req, res) => {
 });
 
 /**
- * 새로운 채굴자 등록
+ * 채굴 (인증 필요)
  */
-app.post('/api/miner/register', (req, res) => {
-  const { name } = req.body;
-  
-  if (!name) {
-    return res.status(400).json({
-      success: false,
-      message: '채굴자 이름이 필요합니다'
-    });
-  }
-  
-  const minerId = uuidv4();
-  const minerAddress = `miner_${minerId.substring(0, 8)}`;
-  
-  miners.set(minerId, {
-    id: minerId,
-    name: name,
-    address: minerAddress,
-    registeredAt: Date.now(),
-    blocksMineds: 0
-  });
-  
-  console.log(`👤 새로운 채굴자 등록: ${name} (${minerAddress})`);
-  
-  res.json({
-    success: true,
-    data: {
-      minerId: minerId,
-      address: minerAddress,
-      name: name,
-      message: '채굴자 등록이 완료되었습니다'
-    }
-  });
-});
-
-/**
- * 채굴자 정보 조회
- */
-app.get('/api/miner/:minerId', (req, res) => {
-  const { minerId } = req.params;
-  const miner = miners.get(minerId);
-  
-  if (!miner) {
-    return res.status(404).json({
-      success: false,
-      message: '채굴자를 찾을 수 없습니다'
-    });
-  }
-  
-  const balance = blockchain.getBalance(miner.address);
-  
-  res.json({
-    success: true,
-    data: {
-      ...miner,
-      balance: balance
-    }
-  });
-});
-
-/**
- * 모든 채굴자 목록 조회
- */
-app.get('/api/miners', (req, res) => {
-  const minersList = Array.from(miners.values()).map(miner => ({
-    ...miner,
-    balance: blockchain.getBalance(miner.address)
-  }));
-  
-  res.json({
-    success: true,
-    data: minersList
-  });
-});
-
-/**
- * 블록 채굴 시작
- */
-app.post('/api/mine', (req, res) => {
-  const { minerId } = req.body;
-  
-  if (!minerId) {
-    return res.status(400).json({
-      success: false,
-      message: '채굴자 ID가 필요합니다'
-    });
-  }
-  
-  const miner = miners.get(minerId);
+app.post('/api/mine', AuthMiddleware.authenticate, miningLimiter, (req, res) => {
+  const miner = miners.get(req.user.minerId);
   
   if (!miner) {
     return res.status(404).json({
@@ -180,12 +402,31 @@ app.post('/api/mine', (req, res) => {
   }
   
   try {
-    // 채굴 실행
+    logger.mining(`채굴 시작: ${miner.name} (${miner.address})`);
+    
     const result = blockchain.minePendingTransactions(miner.address);
     
-    // 채굴자 정보 업데이트
     miner.blocksMineds++;
+    miner.lastMiningTime = parseFloat(result.timeTaken);
+    miner.totalHashPower += result.nonce;
+    
     const balance = blockchain.getBalance(miner.address);
+    
+    miningStats.totalBlocksMined++;
+    miningStats.totalTransactions += result.transactionsProcessed;
+    miningStats.averageMiningTime = 
+      (miningStats.averageMiningTime * (miningStats.totalBlocksMined - 1) + parseFloat(result.timeTaken)) 
+      / miningStats.totalBlocksMined;
+    
+    // 트랜잭션 풀에서 제거
+    transactionPool.clear();
+    
+    logger.success(`채굴 완료: 블록 #${result.block.index} by ${miner.name}`);
+    broadcast('blockMined', {
+      block: result.block,
+      miner: miner.name,
+      reward: result.reward
+    });
     
     res.json({
       success: true,
@@ -206,6 +447,7 @@ app.post('/api/mine', (req, res) => {
       }
     });
   } catch (error) {
+    logger.error('채굴 중 오류:', error.message);
     res.status(500).json({
       success: false,
       message: '채굴 중 오류가 발생했습니다',
@@ -215,17 +457,10 @@ app.post('/api/mine', (req, res) => {
 });
 
 /**
- * 새로운 트랜잭션 생성
+ * 트랜잭션 생성 (호환성)
  */
-app.post('/api/transaction', (req, res) => {
+app.post('/api/transaction', validateInput.transaction, (req, res) => {
   const { from, to, amount } = req.body;
-  
-  if (!from || !to || !amount) {
-    return res.status(400).json({
-      success: false,
-      message: '발신자, 수신자, 금액이 모두 필요합니다'
-    });
-  }
   
   try {
     const transaction = {
@@ -237,6 +472,10 @@ app.post('/api/transaction', (req, res) => {
     };
     
     blockchain.addTransaction(transaction);
+    transactionPool.addTransaction(transaction);
+    
+    logger.info(`트랜잭션 추가: ${from} -> ${to} (${amount} POSTY)`);
+    broadcast('transactionAdded', transaction);
     
     res.json({
       success: true,
@@ -254,9 +493,6 @@ app.post('/api/transaction', (req, res) => {
   }
 });
 
-/**
- * 대기 중인 트랜잭션 조회
- */
 app.get('/api/transactions/pending', (req, res) => {
   res.json({
     success: true,
@@ -267,9 +503,6 @@ app.get('/api/transactions/pending', (req, res) => {
   });
 });
 
-/**
- * 잔액 조회
- */
 app.get('/api/balance/:address', (req, res) => {
   const { address } = req.params;
   const balance = blockchain.getBalance(address);
@@ -278,14 +511,12 @@ app.get('/api/balance/:address', (req, res) => {
     success: true,
     data: {
       address: address,
-      balance: balance
+      balance: balance,
+      coin: 'POSTY'
     }
   });
 });
 
-/**
- * 모든 계정의 잔액 조회
- */
 app.get('/api/balances', (req, res) => {
   res.json({
     success: true,
@@ -294,20 +525,35 @@ app.get('/api/balances', (req, res) => {
 });
 
 /**
- * 난이도 변경
+ * 트랜잭션 풀 통계
  */
-app.post('/api/difficulty', (req, res) => {
-  const { difficulty } = req.body;
+app.get('/api/pool/stats', (req, res) => {
+  res.json({
+    success: true,
+    data: transactionPool.getStats()
+  });
+});
+
+app.get('/api/miners', (req, res) => {
+  const minersList = Array.from(miners.values()).map(miner => ({
+    ...miner,
+    balance: blockchain.getBalance(miner.address),
+    walletId: undefined
+  }));
   
-  if (!difficulty || difficulty < 1 || difficulty > 10) {
-    return res.status(400).json({
-      success: false,
-      message: '난이도는 1에서 10 사이의 값이어야 합니다'
-    });
-  }
+  res.json({
+    success: true,
+    data: minersList
+  });
+});
+
+app.post('/api/difficulty', validateInput.difficulty, (req, res) => {
+  const { difficulty } = req.body;
   
   try {
     blockchain.setDifficulty(parseInt(difficulty));
+    logger.info(`난이도 변경: ${difficulty}`);
+    broadcast('difficultyChanged', { difficulty: blockchain.difficulty });
     
     res.json({
       success: true,
@@ -324,9 +570,6 @@ app.post('/api/difficulty', (req, res) => {
   }
 });
 
-/**
- * 블록체인 유효성 검증
- */
 app.get('/api/validate', (req, res) => {
   const isValid = blockchain.isChainValid();
   
@@ -339,9 +582,6 @@ app.get('/api/validate', (req, res) => {
   });
 });
 
-/**
- * 시스템 통계
- */
 app.get('/api/stats', (req, res) => {
   const chainInfo = blockchain.getChainInfo();
   const totalMiners = miners.size;
@@ -350,45 +590,89 @@ app.get('/api/stats', (req, res) => {
   res.json({
     success: true,
     data: {
-      blockchain: chainInfo,
+      blockchain: {
+        ...chainInfo,
+        currentReward: blockchain.getCurrentReward(),
+        nextHalving: blockchain.halvingInterval - (blockchain.chain.length % blockchain.halvingInterval),
+        coin: 'POSTY'
+      },
       miners: {
         total: totalMiners,
         active: activeMiners
       },
+      mining: miningStats,
+      transactionPool: transactionPool.getStats(),
       topMiners: Array.from(miners.values())
         .map(m => ({
           name: m.name,
           address: m.address,
           balance: blockchain.getBalance(m.address),
-          blocksMineds: m.blocksMineds
+          blocksMineds: m.blocksMineds,
+          totalHashPower: m.totalHashPower
         }))
         .sort((a, b) => b.balance - a.balance)
-        .slice(0, 5)
+        .slice(0, 10),
+      system: {
+        uptime: process.uptime(),
+        memory: process.memoryUsage(),
+        version: '2.1.0'
+      }
     }
   });
 });
 
-// ==================== 서버 시작 ====================
-
-app.listen(PORT, () => {
-  console.log(`\n✅ 서버가 http://localhost:${PORT} 에서 실행 중입니다\n`);
-  console.log('📚 API 엔드포인트:');
-  console.log('  GET  /api/blockchain         - 블록체인 정보');
-  console.log('  GET  /api/chain              - 전체 체인 조회');
-  console.log('  GET  /api/block/:index       - 특정 블록 조회');
-  console.log('  POST /api/miner/register     - 채굴자 등록');
-  console.log('  GET  /api/miner/:minerId     - 채굴자 정보');
-  console.log('  GET  /api/miners             - 모든 채굴자');
-  console.log('  POST /api/mine               - 블록 채굴');
-  console.log('  POST /api/transaction        - 트랜잭션 생성');
-  console.log('  GET  /api/transactions/pending - 대기 트랜잭션');
-  console.log('  GET  /api/balance/:address   - 잔액 조회');
-  console.log('  GET  /api/balances           - 모든 잔액');
-  console.log('  POST /api/difficulty         - 난이도 변경');
-  console.log('  GET  /api/validate           - 체인 검증');
-  console.log('  GET  /api/stats              - 시스템 통계');
-  console.log('\n' + '='.repeat(80) + '\n');
+app.get('/api/export/blockchain', (req, res) => {
+  let csv = 'Index,Timestamp,Hash,Previous Hash,Nonce,Miner,Transactions,Reward\n';
+  
+  blockchain.chain.forEach(block => {
+    const txCount = block.data.transactions ? block.data.transactions.length : 0;
+    const reward = block.data.transactions 
+      ? block.data.transactions.find(tx => tx.type === 'mining_reward')?.amount || 0
+      : 0;
+    csv += `${block.index},${new Date(block.timestamp).toISOString()},${block.hash},${block.previousHash},${block.nonce},${block.miner || 'N/A'},${txCount},${reward}\n`;
+  });
+  
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', 'attachment; filename=posty-blockchain.csv');
+  res.send(csv);
 });
 
-module.exports = app;
+app.get('/api/export/miners', (req, res) => {
+  let csv = 'Name,Address,Balance,Blocks Mined,Total Hash Power,Registered At\n';
+  
+  Array.from(miners.values()).forEach(miner => {
+    const balance = blockchain.getBalance(miner.address);
+    csv += `${miner.name},${miner.address},${balance},${miner.blocksMineds},${miner.totalHashPower},${new Date(miner.registeredAt).toISOString()}\n`;
+  });
+  
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', 'attachment; filename=posty-miners.csv');
+  res.send(csv);
+});
 
+app.use(errorHandler);
+
+// ==================== 서버 시작 ====================
+
+server.listen(PORT, () => {
+  logger.success(`\n✅ 서버가 http://localhost:${PORT} 에서 실행 중입니다\n`);
+  logger.info('💎 POSTY Coin Mining System');
+  logger.info('📚 주요 기능:');
+  logger.info('  ✨ JWT 인증 시스템');
+  logger.info('  💼 지갑 시스템 (RSA 서명)');
+  logger.info('  🔄 트랜잭션 풀');
+  logger.info('  📉 채굴 보상 반감기');
+  logger.info('  🔒 보안 강화 (Rate Limiting, Helmet)');
+  logger.info('  📡 WebSocket 실시간 업데이트');
+  logger.success('\n' + '='.repeat(80) + '\n');
+});
+
+process.on('SIGTERM', () => {
+  logger.info('SIGTERM 신호 수신, 서버 종료 중...');
+  server.close(() => {
+    logger.info('서버가 정상적으로 종료되었습니다');
+    process.exit(0);
+  });
+});
+
+module.exports = { app, server };

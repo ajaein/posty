@@ -1,263 +1,366 @@
-# ⛏️ 암호화폐 채굴 시스템 (Crypto Mining System)
+# ⛏️ Posty Mining System V2.1
 
-Express.js 기반의 블록체인 암호화폐 채굴 시스템입니다.
+**프로페셔널급 POSTY 코인 블록체인 채굴 시스템** - Express.js + WebSocket + JWT
 
-## 🌟 주요 기능
+<div align="center">
 
-- **블록체인 구현**: 완전한 블록체인 구조 (Block, Blockchain)
-- **작업 증명(PoW)**: Proof of Work 알고리즘 기반 채굴
-- **채굴 시스템**: 실시간 블록 채굴 및 보상 지급
-- **트랜잭션**: 코인 전송 및 거래 관리
-- **채굴자 관리**: 다중 채굴자 등록 및 관리
-- **난이도 조절**: 동적 채굴 난이도 설정
-- **잔액 추적**: 주소별 코인 잔액 관리
-- **체인 검증**: 블록체인 무결성 검증
-- **웹 UI**: 직관적인 웹 인터페이스
+![Version](https://img.shields.io/badge/version-2.1.0-blue.svg)
+![Node](https://img.shields.io/badge/node-%3E%3D14.0.0-green.svg)
+![License](https://img.shields.io/badge/license-MIT-green.svg)
 
-## 📋 시스템 요구사항
+</div>
 
-- Node.js 14.x 이상
-- npm 또는 yarn
+---
 
-## 🚀 설치 및 실행
+## 🌟 Posty Coin이란?
 
-### 1. 의존성 설치
+**POSTY**는 교육용 블록체인 기반 암호화폐입니다. 실제 블록체인 기술을 구현하여 채굴, 전송, 지갑 관리 등의 핵심 기능을 제공합니다.
+
+### 💎 주요 특징
+
+- ✅ **작업 증명 (PoW)** - SHA-256 기반 채굴 알고리즘
+- ✅ **반감기 시스템** - 210 블록마다 보상 절반으로 감소
+- ✅ **JWT 인증** - 안전한 사용자 인증
+- ✅ **지갑 시스템** - RSA 공개키/개인키 암호화
+- ✅ **실시간 업데이트** - WebSocket 기반
+- ✅ **모던 UI** - 모바일 앱 스타일 인터페이스
+
+---
+
+## 🚀 빠른 시작
+
+### 1️⃣ 설치
 
 ```bash
 npm install
 ```
 
-### 2. 서버 시작
+### 2️⃣ 실행
 
 ```bash
-# 일반 모드
 npm start
-
-# 개발 모드 (nodemon)
-npm run dev
 ```
 
-서버는 기본적으로 `http://localhost:3000`에서 실행됩니다.
+### 3️⃣ 접속
 
-## 📁 프로젝트 구조
-
-```
-crypto-mining-system/
-├── blockchain/
-│   ├── Block.js           # 블록 클래스
-│   └── Blockchain.js      # 블록체인 클래스
-├── public/
-│   └── index.html         # 웹 UI
-├── server.js              # Express 서버
-├── package.json
-└── README.md
-```
-
-## 🎮 사용 방법
-
-### 웹 인터페이스
-
-1. 브라우저에서 `http://localhost:3000` 접속
-2. 채굴자 이름 입력 후 등록
-3. 난이도 조절 (1-6 권장)
-4. "블록 채굴 시작" 버튼 클릭
-5. 채굴 완료 후 보상 확인
-6. 코인 전송 기능으로 다른 주소로 전송
-
-### API 엔드포인트
-
-#### 블록체인 정보
-```http
-GET /api/blockchain
-```
-블록체인의 전체 정보를 반환합니다.
-
-#### 전체 체인 조회
-```http
-GET /api/chain
-```
-모든 블록을 포함한 체인을 반환합니다.
-
-#### 특정 블록 조회
-```http
-GET /api/block/:index
-```
-지정된 인덱스의 블록을 반환합니다.
-
-#### 채굴자 등록
-```http
-POST /api/miner/register
-Content-Type: application/json
-
-{
-  "name": "채굴자 이름"
-}
-```
-
-#### 채굴자 정보 조회
-```http
-GET /api/miner/:minerId
-```
-
-#### 모든 채굴자 조회
-```http
-GET /api/miners
-```
-
-#### 블록 채굴
-```http
-POST /api/mine
-Content-Type: application/json
-
-{
-  "minerId": "채굴자_ID"
-}
-```
-
-#### 트랜잭션 생성
-```http
-POST /api/transaction
-Content-Type: application/json
-
-{
-  "from": "발신자_주소",
-  "to": "수신자_주소",
-  "amount": 10
-}
-```
-
-#### 대기 중인 트랜잭션 조회
-```http
-GET /api/transactions/pending
-```
-
-#### 잔액 조회
-```http
-GET /api/balance/:address
-```
-
-#### 모든 잔액 조회
-```http
-GET /api/balances
-```
-
-#### 난이도 변경
-```http
-POST /api/difficulty
-Content-Type: application/json
-
-{
-  "difficulty": 4
-}
-```
-
-#### 블록체인 검증
-```http
-GET /api/validate
-```
-
-#### 시스템 통계
-```http
-GET /api/stats
-```
-
-## 💡 주요 개념
-
-### 블록 (Block)
-각 블록은 다음 정보를 포함합니다:
-- **인덱스**: 블록 번호
-- **타임스탬프**: 생성 시간
-- **데이터**: 트랜잭션 정보
-- **이전 해시**: 이전 블록의 해시
-- **해시**: 현재 블록의 해시
-- **Nonce**: 작업 증명 값
-- **채굴자**: 블록을 채굴한 주소
-
-### 작업 증명 (Proof of Work)
-특정 난이도 조건을 만족하는 해시를 찾을 때까지 Nonce 값을 증가시키는 과정입니다.
-- 난이도가 높을수록 채굴 시간이 길어집니다
-- 난이도 4 = 해시가 "0000"으로 시작해야 함
-
-### 채굴 보상
-- 블록을 성공적으로 채굴한 채굴자에게 50 코인 지급
-- 대기 중인 트랜잭션도 함께 처리됨
-
-### 트랜잭션
-- 발신자, 수신자, 금액 정보 포함
-- 블록 채굴 시 함께 처리됨
-- 잔액 검증 기능 포함
-
-## 🔧 설정 변경
-
-`server.js` 파일에서 다음 값들을 수정할 수 있습니다:
-
-```javascript
-const PORT = 3000;                    // 서버 포트
-blockchain.difficulty = 4;            // 초기 난이도
-blockchain.miningReward = 50;         // 채굴 보상
-```
-
-## 🎯 난이도 권장사항
-
-| 난이도 | 예상 시간 | 권장 용도 |
-|--------|----------|----------|
-| 1-2    | 즉시     | 테스트   |
-| 3-4    | 1-10초   | 개발/데모 |
-| 5-6    | 10-60초  | 실습     |
-| 7+     | 1분+     | 실전     |
-
-## 📊 예제 시나리오
-
-1. **채굴자 Alice 등록**
-   - 초기 잔액: 0 코인
-
-2. **첫 블록 채굴**
-   - Alice가 블록 #1 채굴
-   - 보상: 50 코인
-   - Alice 잔액: 50 코인
-
-3. **코인 전송**
-   - Alice → Bob: 20 코인
-   - 트랜잭션이 대기 목록에 추가됨
-
-4. **두 번째 블록 채굴**
-   - Bob이 블록 #2 채굴
-   - 보상: 50 코인
-   - 트랜잭션 처리
-   - Alice 잔액: 30 코인
-   - Bob 잔액: 70 코인
-
-## 🔐 보안 기능
-
-- SHA-256 해시 알고리즘
-- 블록체인 무결성 검증
-- 이전 블록 해시 연결 검증
-- 잔액 검증 (이중 지불 방지)
-
-## 🐛 문제 해결
-
-### 채굴이 너무 느려요
-- 난이도를 낮춰보세요 (1-3 권장)
-
-### 트랜잭션이 처리되지 않아요
-- 트랜잭션 생성 후 블록을 채굴해야 처리됩니다
-
-### 잔액이 부족하다고 나와요
-- 채굴을 통해 코인을 먼저 획득해야 합니다
-
-## 📝 라이센스
-
-MIT License
-
-## 👨‍💻 개발자 정보
-
-Express.js와 Node.js로 구축된 교육용 블록체인 프로젝트입니다.
-
-## 🙏 감사의 말
-
-이 프로젝트는 블록체인 기술의 기본 원리를 이해하기 위한 교육용 목적으로 만들어졌습니다.
+브라우저에서 `http://localhost:3000` 접속
 
 ---
 
+## 📦 기술 스택
+
+### Backend
+- **Node.js** 14+
+- **Express.js** - 웹 서버
+- **WebSocket (ws)** - 실시간 통신
+- **JWT** - 인증
+- **crypto-js** - 암호화
+- **Helmet** - 보안 헤더
+- **Rate Limiting** - DoS 방어
+
+### Frontend
+- **Vanilla JavaScript** (ES6+)
+- **CSS3** (Grid, Flexbox, Animations)
+- **Font Awesome** 6
+- **WebSocket API**
+
+---
+
+## 🎮 사용 방법
+
+### 1. 채굴자 등록
+- 이름 입력 후 "채굴자 등록" 클릭
+- 자동으로 지갑 생성 및 JWT 토큰 발급
+
+### 2. 블록 채굴
+- 난이도 조절 (1-6 권장)
+- "블록 채굴 시작" 클릭
+- 보상 획득 (POSTY 코인)
+
+### 3. POSTY 전송
+- 수신자 주소 입력
+- 전송할 POSTY 수량 입력
+- "전송하기" 클릭
+
+---
+
+## 💰 반감기 시스템
+
+비트코인과 유사한 반감기 메커니즘:
+
+| 블록 범위 | 보상 (POSTY) |
+|-----------|-------------|
+| 0 - 209 | 50 |
+| 210 - 419 | 25 |
+| 420 - 629 | 12.5 |
+| 630 - 839 | 6.25 |
+| ... | ... |
+
+---
+
+## 🔒 보안 기능
+
+### JWT 인증
+- 로그인 시 토큰 발급
+- 모든 채굴/거래 요청 시 검증
+
+### Rate Limiting
+- API: 100 요청/15분
+- 채굴: 20 요청/5분
+
+### 입력 검증
+- XSS 방지
+- SQL Injection 방어
+- 데이터 타입 검증
+
+### RSA 암호화
+- 2048비트 키 쌍 생성
+- 트랜잭션 서명 및 검증
+
+---
+
+## 📡 API 엔드포인트
+
+### 인증
+```
+POST /api/auth/login       - 로그인 (채굴자 등록)
+POST /api/auth/refresh     - 토큰 갱신
+```
+
+### 지갑
+```
+GET  /api/wallet/me        - 내 지갑 조회 (인증 필요)
+POST /api/wallet/send      - POSTY 전송 (인증 필요)
+GET  /api/wallet/export    - 지갑 백업 (인증 필요)
+```
+
+### 블록체인
+```
+GET  /api/health           - 서버 상태
+GET  /api/blockchain       - 블록체인 정보
+GET  /api/chain            - 전체 체인 (페이지네이션)
+GET  /api/block/:index     - 특정 블록 조회
+POST /api/mine             - 블록 채굴 (인증 필요)
+POST /api/transaction      - 트랜잭션 생성
+GET  /api/transactions/pending  - 대기 트랜잭션
+GET  /api/balance/:address - 잔액 조회
+GET  /api/stats            - 시스템 통계
+```
+
+### 설정
+```
+POST /api/difficulty       - 난이도 변경
+GET  /api/validate         - 체인 검증
+```
+
+### 내보내기
+```
+GET  /api/export/blockchain  - CSV 내보내기 (블록체인)
+GET  /api/export/miners      - CSV 내보내기 (채굴자)
+```
+
+---
+
+## 🏗️ 프로젝트 구조
+
+```
+posty-mining-system/
+├── blockchain/
+│   ├── Block.js              # 블록 클래스
+│   └── Blockchain.js         # 블록체인 (반감기 적용)
+├── config/
+│   └── config.js             # 환경 설정
+├── middleware/
+│   ├── auth.js               # JWT 인증
+│   └── security.js           # 보안 미들웨어
+├── models/
+│   ├── TransactionPool.js    # 트랜잭션 풀
+│   └── Wallet.js             # 지갑 시스템
+├── utils/
+│   ├── crypto.js             # RSA 암호화
+│   └── logger.js             # 로깅 시스템
+├── public/
+│   └── index.html            # 웹 UI
+├── logs/                     # 로그 파일
+├── server.js                 # Express 서버
+├── package.json
+├── .env.example              # 환경 변수 예제
+└── README.md
+```
+
+---
+
+## ⚙️ 환경 변수
+
+`.env` 파일 생성:
+
+```env
+PORT=3000
+NODE_ENV=development
+
+INITIAL_DIFFICULTY=4
+MINING_REWARD=50
+HALVING_INTERVAL=210
+
+JWT_SECRET=your-secret-key-change-this
+API_RATE_LIMIT=100
+RATE_LIMIT_WINDOW=15
+
+ALLOWED_ORIGINS=http://localhost:3000
+LOG_LEVEL=info
+```
+
+---
+
+## 🎨 디자인 특징
+
+### 모바일 앱 스타일
+- 깔끔한 카드 레이아웃
+- 부드러운 애니메이션
+- 직관적인 인터페이스
+
+### 다크모드
+- 눈의 피로 감소
+- 자동 테마 저장
+- 원클릭 전환
+
+### 반응형
+- 스마트폰 (320px+)
+- 태블릿 (768px+)
+- 데스크톱 (1024px+)
+
+---
+
+## 📊 실시간 기능
+
+### WebSocket
+- 새 블록 채굴 시 즉시 알림
+- 트랜잭션 추가 실시간 반영
+- 난이도 변경 자동 업데이트
+
+### 토스트 알림
+- 성공/에러 메시지
+- 자동 사라짐
+- 부드러운 애니메이션
+
+---
+
+## 🧪 테스트 시나리오
+
+### 기본 채굴
+```
+1. 채굴자 "Alice" 등록
+2. 난이도 4로 설정
+3. 블록 채굴 → 50 POSTY 획득
+4. 잔액 확인
+```
+
+### POSTY 전송
+```
+1. Alice가 Bob에게 20 POSTY 전송
+2. Bob 등록 후 블록 채굴
+3. 트랜잭션 처리
+4. Alice: 30 POSTY, Bob: 70 POSTY
+```
+
+### 반감기 테스트
+```
+1. 210개 블록 채굴
+2. 보상이 50 → 25로 감소 확인
+3. 다시 210개 블록 채굴
+4. 보상이 25 → 12.5로 감소 확인
+```
+
+---
+
+## 🎯 난이도 가이드
+
+| 난이도 | 예상 시간 | 해시 패턴 | 권장 용도 |
+|--------|----------|----------|----------|
+| 1 | < 1초 | 0... | 빠른 테스트 |
+| 2 | 1-3초 | 00... | 기본 테스트 |
+| 3 | 3-10초 | 000... | 데모 |
+| 4 | 10-30초 | 0000... | **권장** |
+| 5 | 30-120초 | 00000... | 실습 |
+| 6 | 2-5분 | 000000... | 고급 |
+
+---
+
+## 🚨 문제 해결
+
+### 채굴이 너무 느려요
+→ 난이도를 1-3으로 낮추세요
+
+### WebSocket 연결 안 돼요
+→ 방화벽 설정 확인 및 포트 3000 개방
+
+### Rate Limit 에러
+→ 15분 기다린 후 다시 시도
+
+### 잔액 부족
+→ 먼저 채굴로 POSTY 획득 필요
+
+---
+
+## 📱 브라우저 지원
+
+- ✅ Chrome 90+
+- ✅ Firefox 88+
+- ✅ Safari 14+
+- ✅ Edge 90+
+- ✅ 모바일 브라우저
+
+---
+
+## 🌐 데모
+
+**GitHub**: https://github.com/ajaein/posty
+
+---
+
+## 🤝 기여 방법
+
+1. Fork the project
+2. Create your feature branch
+3. Commit your changes
+4. Push to the branch
+5. Open a Pull Request
+
+---
+
+## 📄 라이센스
+
+MIT License - 자유롭게 사용, 수정, 배포 가능합니다.
+
+---
+
+## 🎓 학습 목적
+
+이 프로젝트는 블록체인 기술을 학습하기 위한 교육용 프로젝트입니다.
+
+**학습 내용:**
+- 블록체인 구조
+- 작업 증명 (PoW)
+- 암호화 및 보안
+- JWT 인증
+- WebSocket 실시간 통신
+- RESTful API
+
+---
+
+## 📞 지원
+
+- 🐛 Bug Report: [GitHub Issues](https://github.com/ajaein/posty/issues)
+- 💡 Feature Request: [GitHub Issues](https://github.com/ajaein/posty/issues)
+
+---
+
+<div align="center">
+
+**Made with ❤️ for learning blockchain technology**
+
 ⭐ 이 프로젝트가 도움이 되었다면 Star를 눌러주세요!
 
+**POSTY Coin** - 차세대 교육용 블록체인 플랫폼
+
+</div>

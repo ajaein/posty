@@ -6,20 +6,7 @@ const validator = require('validator');
  * 보안 헤더 설정
  */
 const securityHeaders = helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com"],
-      styleSrcElem: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "blob:"],
-      scriptSrcElem: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
-      scriptSrcAttr: ["'unsafe-inline'"],
-      imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", "ws:", "wss:", "http:", "https:"],
-      workerSrc: ["'self'", "blob:"],
-      childSrc: ["'self'", "blob:"],
-    },
-  },
+  contentSecurityPolicy: false, // CSP 비활성화 (개발 단계)
   hsts: {
     maxAge: 31536000,
     includeSubDomains: true,
